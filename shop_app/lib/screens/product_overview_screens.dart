@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shop_app/providers/cart.dart';
+import 'package:shop_app/screens/cart_screen.dart';
+import 'package:shop_app/widgets/app_drawer.dart';
+import 'package:shop_app/widgets/badge.dart';
 import '../widgets/products_grid.dart';
 import 'package:provider/provider.dart';
 import '../providers/products.dart';
@@ -34,7 +38,7 @@ class _ProductsOverViewScreenState extends State<ProductsOverViewScreen> {
                   }
                 });
               },
-              itemBuilder: (context) => [
+              itemBuilder: (context) => const [
                     PopupMenuItem(
                       child: Text("Only Favorites"),
                       value: FilterOptions.Favorites,
@@ -43,9 +47,23 @@ class _ProductsOverViewScreenState extends State<ProductsOverViewScreen> {
                       child: Text("All"),
                       value: FilterOptions.All,
                     ),
-                  ])
+                  ]),
+          Consumer<Cart>(
+            builder: (context, cart, ch) => Badge(
+              value: cart.totalItems().toString(),
+              color: Colors.red,
+              child: ch as Widget,
+            ),
+            child: IconButton(
+              icon: Icon(Icons.shopping_cart),
+              onPressed: () {
+                Navigator.of(context).pushNamed(CartScreen.routeName);
+              },
+            ),
+          ),
         ],
       ),
+      drawer: AppDrawer(),
       body: ProductsGrid(widget.showOnlyFavorites),
     );
   }
