@@ -1,54 +1,42 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../providers/product.dart';
 import 'package:http/http.dart' as http;
 
 class Products with ChangeNotifier {
-  List<Product> _items = [
-    // Product(
-    //   id: 'p1',
-    //   title: 'Red Shirt',
-    //   description:
-    //       'A red shirt - it is pretty red! A red shirt - it is pretty red! A red shirt - it is pretty red! A red shirt - it is pretty red! A red shirt - it is pretty red! A red shirt - it is pretty red! A red shirt - it is pretty red! A red shirt - it is pretty red! A red shirt - it is pretty red! A red shirt - it is pretty red! A red shirt - it is pretty red! A red shirt - it is pretty red! A red shirt - it is pretty red! A red shirt - it is pretty red! A red shirt - it is pretty red! A red shirt - it is pretty red! A red shirt - it is pretty red! A red shirt - it is pretty red! A red shirt - it is pretty red! A red shirt - it is pretty red!',
-    //   price: 29.99,
-    //   imageUrl:
-    //       'https://cdn.pixabay.com/photo/2016/10/02/22/17/red-t-shirt-1710578_1280.jpg',
-    // ),
-    // Product(
-    //   id: 'p2',
-    //   title: 'Trousers',
-    //   description: 'A nice pair of trousers.',
-    //   price: 59.99,
-    //   imageUrl:
-    //       'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Trousers%2C_dress_%28AM_1960.022-8%29.jpg/512px-Trousers%2C_dress_%28AM_1960.022-8%29.jpg',
-    // ),
-    // Product(
-    //   id: 'p3',
-    //   title: 'Yellow Scarf',
-    //   description: 'Warm and cozy - exactly what you need for the winter.',
-    //   price: 19.99,
-    //   imageUrl:
-    //       'https://live.staticflickr.com/4043/4438260868_cc79b3369d_z.jpg',
-    // ),
-    // Product(
-    //   id: 'p4',
-    //   title: 'A Pan',
-    //   description: 'Prepare any meal you want.',
-    //   price: 49.99,
-    //   imageUrl:
-    //       'https://upload.wikimedia.org/wikipedia/commons/thumb/1/14/Cast-Iron-Pan.jpg/1024px-Cast-Iron-Pan.jpg',
-    // ),
-  ];
+  List<Product> _items = [];
 
   List<Product> get items {
     return [..._items];
   }
 
+  late String _authToken;
+  late String _userId;
+
+  Products(String authTokenL, List<Product> itemsL, String userId) {
+    _authToken = authTokenL;
+    _items = itemsL;
+    _userId = userId;
+  }
+
+  String get authToken {
+    return _authToken;
+  }
+
   Future<void> fetchAndSetProducts() async {
-    const urlString =
-        'https://fluttershopapp-94add-default-rtdb.firebaseio.com/products.json';
+    final urlString =
+        'https://fluttershopapp-94add-default-rtdb.firebaseio.com/products.json?auth=$_authToken';
     final url = Uri.parse(urlString);
+    final urlStringFavorites =
+        'https://fluttershopapp-94add-default-rtdb.firebaseio.com/userFavorites/$_userId.json?auth=$_authToken';
+    final urlFavorites = Uri.parse(urlStringFavorites);
     try {
+      //Fetch favorites
+      final responseFavorites = await http.get(urlFavorites);
+      final favoriteData = json.decode(responseFavorites.body);
+
+      //Fetch produts
       final response = await http.get(url);
       if (json.decode(response.body) != null) {
         final extractedData =
@@ -60,7 +48,9 @@ class Products with ChangeNotifier {
               title: value['title'],
               description: value['description'],
               imageUrl: value['imageUrl'],
-              isFavorite: value['isFavorite'],
+              isFavorite: (favoriteData == null || favoriteData[key] == null)
+                  ? false
+                  : favoriteData[key],
               price: value['price']));
         });
         _items = loadedProducts;
@@ -76,8 +66,8 @@ class Products with ChangeNotifier {
   }
 
   Future<void> addProduct(Product value) async {
-    const urlString =
-        'https://fluttershopapp-94add-default-rtdb.firebaseio.com/products.json';
+    final urlString =
+        'https://fluttershopapp-94add-default-rtdb.firebaseio.com/products.json?auth=$_authToken';
     final url = Uri.parse(urlString);
     try {
       final response = await http.post(
@@ -87,7 +77,6 @@ class Products with ChangeNotifier {
           'description': value.description,
           'imageUrl': value.imageUrl,
           'price': value.price,
-          'isFavorite': value.isFavorite
         }),
       );
       final newProduct = Product(
@@ -95,7 +84,7 @@ class Products with ChangeNotifier {
         title: value.title,
         description: value.description,
         price: value.price,
-        isFavorite: value.isFavorite,
+        isFavorite: false,
         imageUrl: value.imageUrl,
       );
       _items.add(newProduct);
@@ -110,7 +99,7 @@ class Products with ChangeNotifier {
     if (prodIndex >= 0) {
       try {
         final urlString =
-            'https://fluttershopapp-94add-default-rtdb.firebaseio.com/products/$id.json';
+            'https://fluttershopapp-94add-default-rtdb.firebaseio.com/products/$id.json?auth=$_authToken';
         final url = Uri.parse(urlString);
         await http.patch(
           url,
@@ -119,7 +108,6 @@ class Products with ChangeNotifier {
             'description': value.description,
             'imageUrl': value.imageUrl,
             'price': value.price,
-            'isFavorite': value.isFavorite
           }),
         );
         _items[prodIndex] = value;
@@ -132,17 +120,18 @@ class Products with ChangeNotifier {
 
   void deleteProduct(String productID) {
     final urlString =
-        'https://fluttershopapp-94add-default-rtdb.firebaseio.com/products/$productID.json';
+        'https://fluttershopapp-94add-default-rtdb.firebaseio.com/products/$productID.json?auth=$_authToken';
     final url = Uri.parse(urlString);
     var existingProductIndex =
         _items.indexWhere((element) => element.id == productID);
     var existingProduct = _items[existingProductIndex];
     http.delete(url).then((response) {
       if (response.statusCode >= 400) {
-        _items.insert(existingProductIndex, existingProduct);
-        notifyListeners();
+        throw HttpException("Unable to delete product");
       }
     }).catchError((error) {
+      _items.insert(existingProductIndex, existingProduct);
+      notifyListeners();
       print(error);
     });
     _items.removeAt(existingProductIndex);

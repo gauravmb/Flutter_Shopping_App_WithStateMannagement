@@ -1,4 +1,3 @@
-import 'dart:ffi';
 import 'package:flutter/material.dart';
 import 'package:shop_app/providers/products.dart';
 import '../providers/product.dart';
